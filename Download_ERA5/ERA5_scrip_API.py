@@ -22,10 +22,10 @@ os.chdir(path)
 Importation des données
 """
 import cdsapi
-
+my_key = "" # ***********
 c = cdsapi.Client(
 	url = "https://cds.climate.copernicus.eu/api/v2",
-	key = "45576:735bebae-47ca-42a5-aca6-cf3bb5a41525")
+	key = my_key)
 
 DATE_A_TELECHARGER =  range(1979, 2022, 1) # 2022 car la boucle n'inclue pas 2022
 
