@@ -1,5 +1,8 @@
-""" website : https://cds.climate.copernicus.eu/cdsapp#!/home#!%2Fdataset%2Freanalysis-era5-single-levels%3Ftab=overview
+""" 
+website : https://cds.climate.copernicus.eu/cdsapp#!/home#!%2Fdataset%2Freanalysis-era5-single-levels%3Ftab=overview
 database: ERA5 hourly data on single levels from 1979 to present
+
+script pour Download les files d'ERA5 et les importer dans un espace de stockage local
 """
 
 """ 
