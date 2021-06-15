@@ -7,7 +7,12 @@ Changement du directory
 """
 import os
 os.getcwd()
-path = "/media/gabriel/HDD/Database/ERA5/Data"
+database = "/media/gabriel/HDD/Database/ERA5/"
+path = database + "Data"
+path
+
+if(not os.path.isdir(path)):
+	os.makedirs(path)
 os.chdir(path)
 
 """
