@@ -7,5 +7,5 @@ Les cartes de réanalyse sont issue de la database: **ERA5 hourly data on single
 Les variables choisient sont:
 - msl: mean sea level pressure;
 - sst : Sea Surface temperature;
-- slhf: surface latent heat flux;
+- slhf : surface latent heat flux;
 - tcwv : total column water vapour.
