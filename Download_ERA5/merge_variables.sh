@@ -42,7 +42,7 @@ done
 cd $file # aka on va dans le Data_merge/
 
 # test if there is enough available space on disk >>
-content_space=$(du "${path}Data" -m | awk '{ print $1 }') #awk pour seulement retenur la premiere entree
+content_space=$(du "${path}Data" -m | awk '{ print $1 }') #awk pour seulement retenur la premiere entree #https://man7.org/linux/man-pages/man1/du.1.html
 
 # tail -n1 pour enlever le header du output
 disk_left=$(df ${path} -m | tail -n1 | awk '{ print $4 }') # Structure de l'output: Filesystem 1M-blocks Used Available Use% Mounted on
