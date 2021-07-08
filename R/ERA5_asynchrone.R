@@ -15,6 +15,8 @@ start_package <- function(){
   home <<- "/home/gabriel/Documents/"
   setwd(home)
   database <<- "/media/gabriel/HDD/Database/"
+  # clean plots
+  while (dev.cur()>1) dev.off()
 }
 start_package()
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -135,7 +137,7 @@ my.buffer <- function(center_df, radius.m) {
   return(center_df)
 }
 ###### create_circle END ######
-dt_sf <- my.buffer(dt_sf,radius.m = 500*1000)
+dt_sf <- my.buffer(dt_sf,radius.m = 500*1000) 
 dt_sf
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # on choisit les dates qui sont dans l'intersection des dates d'ERA5 et 
@@ -150,63 +152,207 @@ dt.async[,poly_id:=.GRP, by=c("SID","ISO_TIME")]
 time_async <- dt.async
 rm("dt.async");gc()
 
+# pour identifier les id! -----
+time_async[,id:=.I]
+
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # EXTRACTION ASYNCHRONE ----
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+if(FALSE){
+  # path pour allez lire les files .nc
+  path.choosen <- "ERA5/Data_merge/"
+  
+  nc.files.full <- list.files(paste0(database, path.choosen), full.names = T)
+  nc.files <- list.files(paste0(database, path.choosen)) %>% tools::file_path_sans_ext()
+  
+  # lectures des dates des files .nc
+  data.nc.time <- lapply(nc.files.full, function(nc.files.full.i){
+    nc.files.full.i %>% 
+      ncdf4::nc_open() %>% 
+      {ncdf4::ncvar_get(., "time")*(60*60)} %>% 
+      as.POSIXct(origin='1900-01-01 00:00:00', tz= 'UTC') %>% 
+      {.[. %in% time_async$ISO_TIME_async]}
+  }) %>% do.call(c, .) # from : https://stackoverflow.com/a/31472036/13205929
+  
+  data.nc.time.dt <- data.table::data.table(ISO_TIME = data.nc.time, year = lubridate::year(data.nc.time))
+  data.nc.time.dt[,time.id:=seq_len(.N), by = year]
+  
+  # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  # EXTRACTION
+  # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  # if directory exist, restart where the algorithm left
+  path_to_hdd2 <- "/media/gabriel/HDD_2/ERA5/extraction/"
+  if(dir.exists(path_to_hdd2)){
+    completed_iteration <- list.files(path_to_hdd2) %>% tools::file_path_sans_ext() %>% as.integer()
+    iteration.extract <<- seq_along(data.nc.time)[!seq_along(data.nc.time) %in% completed_iteration]
+  } else{
+    iteration.extract <<- seq_along(data.nc.time)
+  }
+  dt_sf <- dt_sf %>% st_as_sf()
+  # CODE FINAL*******
+  {
+    for(time_index in iteration.extract){
+      # on selectionne la date corresponddante de data.nc.time
+      time_select <- data.nc.time[time_index] == time_async$ISO_TIME_async
+      poly.id.select <- time_async[time_select, poly_id]
+      
+      # stocker temporairement le Data Table d'IBTrAC
+      dt_sf.tmp <- dt_sf[dt_sf$poly.id %in% poly.id.select,]
+      dt_sf.tmp$asynchrone_id <- time_async[time_select, id]
+      
+      
+      # test si le temps de la loop est dans IBTrACS
+      if(sum(time_select) == 0){
+        cat("ERROR time is not in dt_sf\n")
+      } else {
+        if(time_index == 1){
+          cat("A changer en fonction de l'allure du noms des fichiers \n")
+        }
+        
+        # grep()
+        date.in.ibtrack.like.file_ncName <- paste0(
+          lubridate::year(data.nc.time[time_index]),
+          lubridate::month(data.nc.time[time_index])
+        )
+        
+        
+        select.path.to.file.in.database.dir <- nc.files.full[str_detect(date.in.ibtrack.like.file_ncName, nc.files)]
+        
+        
+        # lecture des fichiers .nc 
+        suppressMessages(
+          tmp.nc <- stars::read_ncdf(
+            select.path.to.file.in.database.dir, 
+            # var = "msl",
+            ncsub = cbind(
+              start = c(1, 1, data.table::first(data.nc.time.dt[time_index,time.id])),
+              count = c(
+                1440,
+                721,
+                1 # on fait la lecture par 3 heures (faire un saut de 1)
+              )
+            )
+          )
+        )
+        
+        ################################################################################
+        # @> extactextract -------------------------------------------------------------
+        # chaque ligne represente un polygone! Ainsi, le poly.id est lier a la selection dans le dataframe
+        extract.map.by.poly <- lapply(attributes(tmp.nc)$names, function(v.names){
+          tmp.f.r <- as(tmp.nc[v.names], "Raster")
+          out.s <- exactextractr::exact_extract(x = tmp.f.r, 
+                                                y = dt_sf.tmp,
+                                                fun = "mean",
+                                                progress = FALSE,
+                                                # include_cols = c("poly.id", "asynchrone_id")
+                                                append_cols = c("poly.id", "asynchrone_id")
+          )
+          out.s[,var_ERA:=v.names]
+          # out.dt <- rbindlist(out.s)[,var_ERA:=v.names][]
+          return(out.s)
+        }) %>% rbindlist()
+        
+        
+        # write dans le HDD #2, question d'espace
+        fwrite(extract.map.by.poly, 
+               paste0(
+                 path_to_hdd2,
+                 time_index,
+                 ".csv"
+               )
+        )
+        # print ou est rendu la boucle >>>>>>
+        cat(
+          as.character(data.nc.time[time_index]),
+          fill = 2,
+          labels = paste("(", round(time_index / length(data.nc.time) * 100, 2), "%", "):")
+        )
+        # <<<<<<
+        
+        # clear memory
+        gc()
+      }
+    }
+  }
+  
+  # merge of all csv into one unique file
+  extraction_MergeAll_csv <- list.files(path=path_to_hdd2, full.names = TRUE) %>%
+    lapply(read.csv) %>% 
+    bind_rows
+  
+  
+  dir.create("/media/gabriel/HDD_2/ERA5/merge_all_time/")
+  extraction_MergeAll_csv %>% data.table::fwrite("/media/gabriel/HDD_2/ERA5/merge_all_time/merge_all_time.csv")
+  
+}
 
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# EXTRACTION SYNCHRONE ----
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # path pour allez lire les files .nc
-path.choosen <- "ERA5/Data_merge/"
+path.choosen <- "/MSWEP/Data/"
 
 nc.files.full <- list.files(paste0(database, path.choosen), full.names = T)
 nc.files <- list.files(paste0(database, path.choosen)) %>% tools::file_path_sans_ext()
 
 # lectures des dates des files .nc
 data.nc.time <- lapply(nc.files.full, function(nc.files.full.i){
-  data.nc <- ncdf4::nc_open(nc.files.full.i)
-  data.nc.time <- {ncdf4::ncvar_get(data.nc, "time")*(60*60)} %>% 
-    as.POSIXct(origin='1900-01-01 00:00:00', tz= 'UTC') %>% 
-    {.[. %in% time_async$ISO_TIME_async]}
-  
-  ncdf4::nc_close(data.nc)
-  
-  return(data.nc.time)
+  nc.files.full.i %>% 
+    ncdf4::nc_open() %>% 
+    {ncdf4::ncvar_get(.,"time")*(24 * 60 * 60)} %>% # car les units sont: days since 1899-12-31 00:00:00
+    as.POSIXct(origin='1899-12-31 00:00:00', tz= 'UTC') #%>% 
 }) %>% do.call(c, .) # from : https://stackoverflow.com/a/31472036/13205929
 
-data.nc.time.dt <- data.table::data.table(ISO_TIME = data.nc.time, year = lubridate::year(data.nc.time))
-data.nc.time.dt[,time.id:=seq_len(.N), by = year]
-
-
-# pour identifier les id! -----
-time_async[,id:=.I]
+data.nc.time.dt <- data.table::data.table(ISO_TIME = data.nc.time, year.month = paste(
+  lubridate::year(data.nc.time),
+  lubridate::day(data.nc.time),
+  sep = "_"
+  ))
+data.nc.time.dt[,time.id:=seq_len(.N), by = year.month]
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # EXTRACTION
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# if directory exist, restart where the algorithm left
+path_to_hdd2 <- "/media/gabriel/HDD_2/MSWEP/"
+dir.create(path_to_hdd2) # OK, car erreur si existe
+if(!is_empty(list.files(path_to_hdd2))){
+  completed_iteration <- list.files(path_to_hdd2) %>% tools::file_path_sans_ext() %>% as.integer() %>% sort()
+  seq_time <- seq_along(data.nc.time)[data.nc.time %in% dt_sf$ISO_TIME]
+  iteration.extract <<- seq_time[!seq_time %in% completed_iteration]
+} else {
+  iteration.extract <<- seq_along(data.nc.time)[data.nc.time %in% dt_sf$ISO_TIME] # selectionne les fichier dans IBTrACS
+}
+dt_sf <- dt_sf %>% st_as_sf()
+
 # CODE FINAL*******
 {
-  for(time_index in seq_along(data.nc.time)){
+  for(time_index in iteration.extract){
     # on selectionne la date corresponddante de data.nc.time
-    time_select <- data.nc.time[time_index] == time_async$ISO_TIME_async
-    poly.id.select <- time_async[time_select, poly_id]
+    
+    time_select <- data.nc.time[time_index]
+    # poly.id.select <- time_async[time_select, poly_id]
     
     # stocker temporairement le Data Table d'IBTrAC
-    dt_sf.tmp <- dt_sf[dt_sf$poly.id %in% poly.id.select,]
-    dt_sf.tmp$asynchrone_id <- time_async[time_select, id]
+    dt_sf.tmp <- dt_sf[dt_sf$ISO_TIME %in% data.nc.time[time_index],]# [dt_sf$poly.id %in% poly.id.select,] # plus besoin, car synchrone
+    # dt_sf.tmp$asynchrone_id <- time_async[time_select, id]
     
     
     # test si le temps de la loop est dans IBTrACS
-    if(sum(time_select) == 0){
-      cat("ERROR time is not in dt_sf\n")
-    } else {
-      if(time_index == 1){
-        cat("A changer en fonction de l'allure du noms des fichiers \n")
-      }
-      
+    {
       # grep()
-      date.in.ibtrack.like.file_ncName <- paste0(
-        lubridate::year(data.nc.time[time_index]),
-        lubridate::month(data.nc.time[time_index])
-      )
+      if(lubridate::month(data.nc.time[time_index])>=10){
+        date.in.ibtrack.like.file_ncName <- paste0(
+          lubridate::year(data.nc.time[time_index]),
+          lubridate::month(data.nc.time[time_index])
+        )
+      } else { # necessaire, pour fit la structure des noms de fichier
+        date.in.ibtrack.like.file_ncName <- paste0(
+          lubridate::year(data.nc.time[time_index]),
+          "0",
+          lubridate::month(data.nc.time[time_index])
+        )
+      }
       
       
       select.path.to.file.in.database.dir <- nc.files.full[str_detect(date.in.ibtrack.like.file_ncName, nc.files)]
@@ -220,8 +366,8 @@ time_async[,id:=.I]
           ncsub = cbind(
             start = c(1, 1, data.table::first(data.nc.time.dt[time_index,time.id])),
             count = c(
-              1440,
-              721,
+              3600,
+              1800,
               1 # on fait la lecture par 3 heures (faire un saut de 1)
             )
           )
@@ -231,22 +377,18 @@ time_async[,id:=.I]
       ################################################################################
       # @> extactextract -------------------------------------------------------------
       # chaque ligne represente un polygone! Ainsi, le poly.id est lier a la selection dans le dataframe
-      extract.map.by.poly <- lapply(attributes(tmp.nc)$names, function(v.names){
-        tmp.f.r <- as(tmp.nc[v.names], "Raster")
-        out.s <- exactextractr::exact_extract(x = tmp.f.r, 
-                                              y = dt_sf.tmp,
-                                              progress = FALSE,
-                                              include_cols = c("poly.id", "asynchrone_id")
+      extract.map.by.poly <- as(tmp.nc, "Raster") %>% 
+          exactextractr::exact_extract(y = dt_sf.tmp,
+                                       fun = "mean",
+                                       progress = FALSE,
+                                       append_cols = c("poly.id")
         )
-        out.dt <- rbindlist(out.s)[,var_ERA:=v.names][]
-        return(out.dt)
-      }) %>% rbindlist()
       
       
       # write dans le HDD #2, question d'espace
       fwrite(extract.map.by.poly, 
              paste0(
-               "/media/gabriel/HDD_2/ERA5/extraction/",
+               path_to_hdd2,
                time_index,
                ".csv"
              )
@@ -255,7 +397,9 @@ time_async[,id:=.I]
       cat(
         as.character(data.nc.time[time_index]),
         fill = 2,
-        labels = paste("(", round(time_index / length(data.nc.time) * 100, 2), "%", "):")
+        labels = paste("(", round(time_index / length(
+          seq_along(data.nc.time)[data.nc.time %in% dt_sf$ISO_TIME]
+          ) * 100, 2), "%", "):")
       )
       # <<<<<<
       
@@ -264,3 +408,28 @@ time_async[,id:=.I]
     }
   }
 }
+
+
+##############################
+# fwrite(time_async,"/home/gabriel/Desktop/extraction_back_up/time_async.csv")
+# ERA5 MEAN
+start_package()
+# time_async <- fread("/home/gabriel/Desktop/extraction_back_up/time_async.csv")
+# setkey(time_async, poly_id)
+era5.DT <- fread("/home/gabriel/Desktop/extraction_back_up/merge_all_time.csv")
+setkey(era5.DT, poly.id)
+
+# merge by synchrone data
+era5.DT.s <- era5.DT[,mean(mean), by=c("var_ERA", "poly.id")][]
+setnames(era5.DT.s, "V1", "mean_asynchrone")
+era5.DT.s <- dcast(era5.DT.s, poly.id~var_ERA, value.var = "mean_asynchrone")
+if(!file.exists("/home/gabriel/Desktop/extraction_back_up/era5_mean_asynchrone.csv")){
+  fwrite(era5.DT.s, "/home/gabriel/Desktop/extraction_back_up/era5_mean_asynchrone.csv")
+}
+
+era5.DT.s <- fread("/home/gabriel/Desktop/extraction_back_up/era5_mean_asynchrone.csv")
+
+
+setkey(dt_sf, poly.id)
+dt_sf[era5.DT.s, on = "poly.id", `:=`(msl=msl, slhf=slhf, sst=sst, tcwv=tcwv)]
+
