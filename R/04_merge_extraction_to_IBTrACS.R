@@ -8,7 +8,7 @@ source(paste0(home.script, "/01_IBTrACs.R"))
 
 # fwrite(time_async,"/home/gabriel/Desktop/extraction_back_up/time_async.csv")
 # ERA5 MEAN
-start_package()
+
 # time_async <- fread("/home/gabriel/Desktop/extraction_back_up/time_async.csv")
 # setkey(time_async, poly_id)
 era5.DT <- fread("/home/gabriel/Desktop/extraction_back_up/merge_all_time.csv")
