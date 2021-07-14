@@ -1,11 +1,18 @@
-# Arrangement des donnees d'IBTrACs
-
+# Importation et arrangement des donnees d'IBTrACs
 
 # importation DataBase
 {
-  # importation de IBTrack
-  header <- paste0(database, "IBTrack/ibtracs.ALL.list.v04r00(2020).csv") %>% scan(nlines = 1, what = character(), sep = ",")
-  df_csv <- paste0(database, "IBTrack/ibtracs.ALL.list.v04r00(2020).csv") %>% read.csv(skip = 2, header = F)
+  # path pour lire la database
+  destfile <- paste0(database, "IBTrack/ibtracs.ALL.list.v04r00(2020).csv")
+  # si data n'est pas enregistrer, alors on l'enregistre dans le HDD
+  if(!file.exists(destfile)){
+    url <- "https://ncei.noaa.gov/data/international-best-track-archive-for-climate-stewardship-ibtracs/v04r00/access/csv/ibtracs.ALL.list.v04r00.csv"
+    download.file(url, destfile)
+  }
+  
+  # importation de IBTrack dans l'environnement R
+  header <- destfile %>% scan(nlines = 1, what = character(), sep = ",")
+  df_csv <- destfile %>% read.csv(skip = 2, header = F)
   names(df_csv) <- header
   
   df_csv$BASIN <- as.character(df_csv$BASIN)
@@ -59,6 +66,8 @@
   dt_sf <- dt_sf[!duplicated(dt_sf$poly.id),]
 }
 ###### create_circle START ######
+# fonction qui permet de creer un buffer circulaire meme si 
+# le cercle est au dela des extremite (-180;180) [CRS: 4326]
 my.buffer <- function(center_df, radius.m) {
   # set du cadrage
   my.bbox <- st_as_sfc(
