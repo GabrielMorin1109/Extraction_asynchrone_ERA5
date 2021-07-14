@@ -5,6 +5,7 @@ Extraction asynchrone, historique et combinaison des differents codes.
 # import package
 home.script <- dirname(rstudioapi::getSourceEditorContext()$path)
 source(paste0(home.script, "/00_source.R"))
+start_package(parallel_B = FALSE)
 source(paste0(home.script, "/01_IBTrACs.R"))
 
 ###############################################################################~
