@@ -26,6 +26,15 @@ path.to.data.nc <- paste0(database, "/MSWEP/Data/")
 # Les extractions sont enregistrer sur un hard drive different.
 path_to_hdd2 <- "/media/gabriel/HDD_2/"
 
+# creation du directory ou les fichiers vont etre enregistrer
+if(file.exists(path_to_hdd2)){
+  dir.create(paste0(path_to_hdd2, "MSWEP/")) # OK, car erreur si existe
+} else {
+  path_to_hdd2 <- svDialogs::dlg_dir(default = getwd(),
+                                     title = "Vous devez specifier le repertoire ou les extractions vont etre enregistrer")$res
+}
+
+
 # ==============================================================================
 
 
@@ -57,11 +66,12 @@ data.nc.time.dt[,time.id:=seq_len(.N), by = year.month]
 # EXTRACTION
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # if directory exist, restart where the algorithm left
-path_to_hdd2.MSWEP <- paste0(path_to_hdd2, "MSWEP/")
+path_to_hdd2.extraction <- paste0(path_to_hdd2, "MSWEP/extraction/")
+dir.create(path_to_hdd2.extraction) # erreur si le directory existe
 
-dir.create(path_to_hdd2.MSWEP) # OK, car erreur si existe
-if(!is_empty(list.files(path_to_hdd2.MSWEP))){
-  completed_iteration <- list.files(path_to_hdd2.MSWEP) %>% tools::file_path_sans_ext() %>% as.integer() %>% sort()
+
+if(!is_empty(list.files(path_to_hdd2.extraction))){
+  completed_iteration <- list.files(path_to_hdd2.extraction) %>% tools::file_path_sans_ext() %>% as.integer() %>% sort()
   seq_time <- seq_along(data.nc.time)[data.nc.time %in% dt_sf$ISO_TIME]
   iteration.extract <<- seq_time[!seq_time %in% completed_iteration]
 } else {
@@ -130,7 +140,7 @@ dt_sf <- dt_sf %>% st_as_sf()
       # write dans le HDD #2, question d'espace
       fwrite(extract.map.by.poly, 
              paste0(
-               path_to_hdd2.MSWEP,
+               path_to_hdd2.extraction,
                time_index,
                ".csv"
              )
@@ -150,3 +160,20 @@ dt_sf <- dt_sf %>% st_as_sf()
     }
   }
 }
+
+
+##############################
+
+# merge of all csv into one unique file
+extraction_MergeAll_csv <- list.files(path=path_to_hdd2.extraction, full.names = TRUE) %>%
+  lapply(read.csv) %>% 
+  dplyr::bind_rows()
+
+# create merge_all_time file ----
+paste0(path_to_hdd2, "MSWEP/merge_all_time/") %>% 
+  dir.create()
+
+# write concatenante files
+extraction_MergeAll_csv %>%
+  data.table::fwrite(file = paste0(path_to_hdd2, "MSWEP/merge_all_time/merge_all_time.csv"))
+

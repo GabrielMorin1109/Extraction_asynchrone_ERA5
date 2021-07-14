@@ -25,6 +25,16 @@ path.to.data.nc <- paste0(database, "ERA5/Data_merge/")
 
 # Les extractions sont enregistrer sur un hard drive different.
 path_to_hdd2 <- "/media/gabriel/HDD_2/"
+
+# creation du directory ou les fichiers vont etre enregistrer
+if(exists("path_to_hdd2")){
+  dir.create(paste0(path_to_hdd2, "ERA5"))
+} else {
+  path_to_hdd2 <- svDialogs::dlg_dir(default = getwd(),
+                                     title = "Vous devez specifier le repertoire ou les extractions vont etre enregistrer")$res
+}
+
+       
 # ==============================================================================
 
 ###############################################################################~
@@ -69,8 +79,10 @@ data.nc.time.dt[,time.id:=seq_len(.N), by = year]
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # EXTRACTION
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 # if directory exist, restart where the algorithm left
 path_to_hdd2.extraction <- paste0(path_to_hdd2, "ERA5/extraction/")
+dir.create(path_to_hdd2.extraction) # erreur si le directory existe
 
 if(dir.exists(path_to_hdd2.extraction)){
   completed_iteration <- list.files(path_to_hdd2.extraction) %>% tools::file_path_sans_ext() %>% as.integer()
@@ -95,9 +107,6 @@ dt_sf <- dt_sf %>% st_as_sf()
     if(sum(time_select) == 0){
       cat("ERROR time is not in dt_sf\n")
     } else {
-      if(time_index == 1){
-        cat("A changer en fonction de l'allure du noms des fichiers \n")
-      }
       
       # grep()
       date.in.ibtrack.like.file_ncName <- paste0(
@@ -165,22 +174,17 @@ dt_sf <- dt_sf %>% st_as_sf()
   }
 }
 
+##############################
+
 # merge of all csv into one unique file
 extraction_MergeAll_csv <- list.files(path=path_to_hdd2.extraction, full.names = TRUE) %>%
   lapply(read.csv) %>% 
-  bind_rows
+  dplyr::bind_rows()
 
 # create merge_all_time file ----
 paste0(path_to_hdd2, "ERA5/merge_all_time/") %>% 
   dir.create()
 # write concatenante files
 extraction_MergeAll_csv %>%
-  paste0(path_to_hdd2, "merge_all_time/merge_all_time.csv") %>%
-  data.table::fwrite()
-
-
-
-
-##############################
-
+  data.table::fwrite(file = paste0(path_to_hdd2, "ERA5/merge_all_time/merge_all_time.csv"))
 
