@@ -26,9 +26,9 @@ Les données <a href = "https://psl.noaa.gov/enso/mei/">**El Niño–Southern Os
 ----
 
 ```diff
-- Si vous êtes sous Windows, il est possible qu'il y ait des erreurs d'exécution. 
-- Le script R utilise le *fork parallel processing* qui fonctionne seulement sur les machines Unix.
-- Je crée aussi un modèle de GBM avec un package qui fonctionne aussi seulement avec Unix.
+- Si vous êtes sous Windows, il est possible qu'il y ait des erreurs d'exécution.
+- Le script R utilise le *fork parallel processing* qui fonctionne seulement sur les machines Unix. (Normalement, il n'y a pas d'erreur de ce côté)
+- Je crée un modèle de GBM avec un package qui fonctionne seulement avec Unix.
 - Ne portez pas attention aux fautes de français dans mes scripts, je vais les corrige vers la fin.
 ```
 Si vous avez des commentaires, veuillez m'écrire à mon adresse <a href="gabriel.morin1109@outlook.com"> gabriel.morin1109@outlook.com</a>.
