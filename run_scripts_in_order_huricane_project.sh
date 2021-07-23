@@ -1,5 +1,9 @@
 #!/bin/sh
 
+#Ce script permet notamment d'avoir une idée globale de l'ordre d'exécution des scripts pour ce projet. 
+#Le script BASH n'est pas opérationnel et peut causer des problèmes d'exécution. 
+# Pour l'instant, il n'est pas recommandé de rouler ce script directement dans un terminal.
+
 ######   ERA5   ######
 # RUN >>>>>>>>>>>>>>>>>>>>>>>>>>>>
 # find script in computer
