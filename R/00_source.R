@@ -1,15 +1,16 @@
 ###############################################################################~
-start_package <- function(parallel_B=FALSE){
+start_package <- function(numCores = 1){
   list.of.packages <- c("future","measurements","lubridate","parallel", "tidyverse", "data.table", "raster", "sf",
                         "exactextractr", "stars", "ncdf4", "units"
                         )
   packages.necessaire <- c("svDialogs", # pour ecrire des messages dans une fenetre "pop-up" pour l'utilisateur
-                           "unix") # pour set la limite de memoire vive utilisable par R (Pas necessaire sous une machine non Unix)
+                           "unix", # pour set la limite de memoire vive utilisable par R (Pas necessaire sous une machine non Unix)
+                           "parallel") # pour set en parallel
   
   list.of.packages <- c(list.of.packages, packages.necessaire)
   
   
-  # fonction qui permet d'installer les packages manquant de la list.of.packages
+  # @> fonction qui permet d'installer les packages manquant de la list.of.packages ----
   install.missing.package <- function(list.of.packages){
     new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
     if(length(new.packages) > 0) {
@@ -38,6 +39,7 @@ start_package <- function(parallel_B=FALSE){
       } 
     }
   }
+  # @< -----
   
   install.missing.package(list.of.packages)
   for (package_name in list.of.packages) {
@@ -45,25 +47,24 @@ start_package <- function(parallel_B=FALSE){
             character.only = TRUE,
             quietly = TRUE)
   }
-  
-  # future::plan(multicore) 
-  # numCores <<- parallel::detectCores()-18
-  
+  # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+  # mes paths personnels, a modifier selon votre machine. Dans un futur proche, home devrait etre retirer.
   home <<- "/home/gabriel/Documents/"
   setwd(home)
+  # path pour lire les bases de donnees
   database <<- "/media/gabriel/HDD/Database/"
+  # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
   
+  cat(">>>> Function message : \n")
   # ask user if they want to set parallel computing >>>>>>>
-  if(isTRUE(parallel_B)){
-    Yes_no_Q <<- ok_cancel_box("Do you want to compute in parallel?")
-    if (isTRUE(Yes_no_Q)) {
-      # test recursif pour poser la question du nombre de coeur choisit pour parrallel
+  numcore_out_of_range.B <- !(numCores > 0 & numCores <= parallel::detectCores())
+    if (numcore_out_of_range.B) {
+      # test recursif pour poser la question du nombre de coeurs choisit pour parallel
       Question.user <- function(){
         user.input <- as.integer(
           svDialogs::dlg_input(paste0("Enter the number of cores you want to use. \nThe number must be between 1 and ", parallel::detectCores()),
                                default = 1)$res
         )
-        # user.input <- Question.user()
         # si on a pas un nombre de coeur possible a selectionner, on repose la question
         if (!length(user.input)) { # The user clicked the 'cancel' button
           user.input <- 1
@@ -74,31 +75,25 @@ start_package <- function(parallel_B=FALSE){
         }
         return(user.input)
       }
-      numCores <<- suppressWarnings(Question.user())
-      
-    } else if (isFALSE(Yes_no_Q)) {
-      message("One core will be use.\n")
-      numCores <<- 1
+      numCores <- suppressWarnings(Question.user())
     }
+    # inform users how many cores will be used
     message(paste0("Parrallel computing will use ", numCores, " core(s).\n"))
     
-    ### parrallel ###
+    ### parallel and RAM limit for Unix user ###
     B.windows <<- Sys.info()["sysname"] != "Linux" # permet de tester si le systeme peut parrallelise en "fork"
     if(!B.windows) { 
       # Set a memory limit that R can use.
       if (Sys.info()["sysname"] == "Linux") {
-        cat(c("Using 60Gb of RAM."))
+        message(c("Maximum RAM usage is set to 60Gb. Limit can be changed by modifying the code."))
         unix::rlimit_as(60e12, 60e12)
       }
       # set parallel structure
       future::plan(multicore)
     } else {
-      svDialogs::msg_box(paste0("Since you have Windows, parrallel plan will not work and only one core will be used"))
+      message(paste0("Since you have Windows, parallel plan will not work and only one core will be used"))
     }
-  }
-  if(!exists("numCores")){
-    numCores <<- 1
-  }
+  
   # clean plots
   while (dev.cur()>1) dev.off()
   # clean garbage memory
