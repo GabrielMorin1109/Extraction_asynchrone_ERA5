@@ -31,3 +31,5 @@ Les données <a href = "https://psl.noaa.gov/enso/mei/">**El Niño–Southern Os
 - Je crée un modèle de GBM avec un package qui fonctionne seulement avec Unix.
 ```
 Si vous avez des commentaires, veuillez m'écrire à mon adresse <a href="gabriel.morin1109@outlook.com"> gabriel.morin1109@outlook.com</a>.
+
+(Travail codirigé avec Mathieu Boudreault et Louis-Philippe Caron.)
