@@ -21,7 +21,7 @@ Les cartes de précipitations sont issues de la base de données <a href = "http
 
 ----
 
-Les données <a href = "https://psl.noaa.gov/enso/mei/">**El Niño–Southern Oscillation**</a> (*ENSO*) ont été utilisé comme variable covariate dans le modèle.
+Les données <a href = "https://psl.noaa.gov/enso/mei/">**El Niño–Southern Oscillation**</a> (*ENSO*) ont été utilisées comme variable covariate dans le modèle.
 
 ----
 
